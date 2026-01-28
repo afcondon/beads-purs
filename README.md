@@ -1,52 +1,164 @@
 # beads-purs
 
-A PureScript port of [beads](https://github.com/steveyegge/beads), the distributed git-backed issue tracker for AI coding agents.
+A git-backed issue tracker written in PureScript. Every change auto-commits, so your issues sync when you `git push/pull`.
 
-## Why?
+Inspired by [Steve Yegge's beads](https://github.com/steveyegge/beads) - reimagined with functional programming principles.
 
-The original beads is written in Go and reportedly "100% vibe coded". This port aims to:
+## Installation
 
-1. **Understand the architecture** — Types make structure explicit
-2. **Get a typed specification** — The domain is rich in ADTs
-3. **Trust what runs on our code** — PureScript is safer
-4. **Potentially extend** — Visualization with PSD3, etc.
-
-## Status
-
-**Milestone 1: Types + JSONL** (in progress)
-
-- [x] Core types (Issue, Status, Priority, etc.)
-- [x] JSON encode/decode
-- [x] JSONL parsing/serialization
-- [x] File system read/write
-- [x] ID generation
-- [ ] Roundtrip tests against Go version
-
-## Building
+Requires Node.js (v16+).
 
 ```bash
+git clone https://github.com/afcondon/beads-purs.git
+cd beads-purs
+
+# Option 1: Run directly
+./bin/bd help
+
+# Option 2: Symlink to PATH
+ln -s $(pwd)/bin/bd /usr/local/bin/bd
+```
+
+No build step needed - the bundle is pre-compiled.
+
+## Quick Start
+
+```bash
+cd your-project
+bd init                              # Creates .beads/issues.jsonl
+bd create "Fix login bug" -p 1       # P1 = high priority
+bd create "Add dark mode" -p 2       # P2 = normal (default)
+bd create "Update docs" -p 3         # P3 = low
+
+bd ready                             # Shows what to work on next
+# [P1] bd-a1b2: Fix login bug
+# [P2] bd-c3d4: Add dark mode
+# [P3] bd-e5f6: Update docs
+
+bd close bd-a1b2 "Fixed in commit abc123"
+bd ready                             # Login bug gone, dark mode is next
+```
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `bd init` | Initialize beads in current directory |
+| `bd create "title"` | Create issue (`-p` priority, `-d` description) |
+| `bd ready` | Show unblocked issues by priority |
+| `bd list` | Show all open issues (`-s` search, `-n` limit) |
+| `bd show <id>` | Show full issue details |
+| `bd close <id> "reason"` | Close an issue |
+| `bd dep add <a> <b>` | Make `a` blocked by `b` |
+| `bd dep rm <a> <b>` | Remove dependency |
+| `bd edit <id>` | Edit issue (`-t` title, `-p` priority) |
+| `bd stats` | Show statistics |
+| `bd help` | Show help |
+
+## Dependencies (Blocking)
+
+The killer feature: model which issues block others.
+
+```bash
+bd create "Build API" -p 1           # bd-api1
+bd create "Build Frontend" -p 1      # bd-fe02
+bd dep add bd-fe02 bd-api1           # Frontend blocked by API
+
+bd ready
+# [P1] bd-api1: Build API
+# (frontend doesn't appear - it's blocked)
+
+bd close bd-api1 "API complete"
+bd ready
+# [P1] bd-fe02: Build Frontend
+# (now it appears)
+```
+
+## Priority Levels
+
+| Level | Meaning |
+|-------|---------|
+| P0 | Critical - drop everything |
+| P1 | High - do soon |
+| P2 | Normal - default |
+| P3 | Low - when time permits |
+| P4 | Backlog - someday |
+
+## Git Integration
+
+Every write operation auto-commits:
+
+```
+beads: create bd-a1b2 - Fix login bug
+beads: close bd-a1b2 - Fixed in commit abc123
+beads: dep add bd-fe02 blocked by bd-api1
+```
+
+Your issues travel with your code. Push to share, pull to sync.
+
+## File Format
+
+Issues are stored in `.beads/issues.jsonl` - one JSON object per line:
+
+```json
+{"id":"bd-a1b2","title":"Fix bug","status":"open","priority":1,"dependencies":[],...}
+```
+
+It's just text. You can grep it, edit it, diff it.
+
+## Why beads-purs?
+
+- **Git-native**: Issues live with code, not in a separate system
+- **Offline-first**: No server, no internet required
+- **AI-friendly**: Plain text files that agents can read/write
+- **Conflict-free**: Hash-based IDs prevent merge collisions
+- **Functional core**: Pure transformations, effects at edges
+
+## Building from Source
+
+If you want to modify beads-purs:
+
+```bash
+# Install PureScript toolchain
+npm install -g spago purescript
+
+# Build
 spago build
+
+# Bundle
+spago bundle --bundle-type app --platform node --outfile bin/bd.js
+
+# Run
+spago run
 ```
 
-## Project Structure
+## Architecture
 
 ```
-src/
-└── Beads/
-    ├── Core/
-    │   ├── Types.purs      # Issue, Status, Priority, etc.
-    │   ├── Issue.purs      # JSON codecs for Issue
-    │   └── Id.purs         # ID generation and parsing
-    └── Storage/
-        ├── JSONL.purs      # JSONL format parsing
-        └── FileSystem.purs # .beads/ directory handling
+CLI (Main.purs)
+    ↓
+App (effectful wrapper - load/save/git)
+    ↓
+Commands (pure: Store → Either Error Store)
+    ↓
+Queries (pure: Store → Array Issue)
+    ↓
+Store (immutable Map IssueId Issue)
+    ↓
+JSONL (parse/serialize)
 ```
+
+All business logic is pure. Effects only happen at the edges.
 
 ## Compatibility
 
-Aims to be compatible with Go beads' JSONL format. Should be able to read/write `issues.jsonl` created by either implementation.
+Compatible with the original beads JSONL format. Should be able to read issues created by Steve Yegge's Go implementation.
 
-## Related
+## License
 
-- [Original beads](https://github.com/steveyegge/beads)
-- [Port plan](../PSD3-Repos/docs/kb/plans/beads-purescript-port.md)
+MIT
+
+## Credits
+
+- Original concept: [Steve Yegge's beads](https://github.com/steveyegge/beads)
+- Built with: [PureScript](https://www.purescript.org/)
