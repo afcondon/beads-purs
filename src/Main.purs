@@ -2,103 +2,162 @@ module Main where
 
 import Prelude
 
-import Beads.Core.Commands as Cmd
-import Beads.Core.Id (generateId)
-import Beads.Core.Queries as Q
-import Beads.Core.Store as Store
+import Beads.App as App
 import Beads.Core.Types (Issue, IssueId(..))
-import Beads.Storage.JSONL (parseJSONL)
-import Data.Array (take)
-import Data.Either (Either(..))
+import Data.Array (drop, head, take, (!!))
 import Data.Foldable (for_)
-import Data.Maybe (Maybe(..))
+import Data.Either (Either(..))
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String as String
 import Effect (Effect)
-import Effect.Aff (launchAff_)
+import Effect.Aff (Aff, launchAff_, message, try)
 import Effect.Class (liftEffect)
 import Effect.Console (log)
-import Node.Encoding (Encoding(..))
-import Node.FS.Aff (readTextFile)
+import Node.Process (argv)
 
 main :: Effect Unit
 main = launchAff_ do
-  liftEffect $ log "=== Beads PureScript (New Architecture) ==="
-  liftEffect $ log ""
+  args <- liftEffect argv
+  -- args: [node, script, command, ...args]
+  let command = args !! 2
+  let cmdArgs = drop 3 args
 
-  -- Load issues from the real beads repo
-  let issuesPath = "/Users/afc/work/afc-work/GitHub/beads/.beads/issues.jsonl.new"
-  content <- readTextFile UTF8 issuesPath
+  case command of
+    Just "init" -> cmdInit
+    Just "create" -> cmdCreate cmdArgs
+    Just "ready" -> cmdReady cmdArgs
+    Just "close" -> cmdClose cmdArgs
+    Just "list" -> cmdList cmdArgs
+    Just "stats" -> cmdStats
+    Just "help" -> cmdHelp
+    Just cmd -> do
+      liftEffect $ log $ "Unknown command: " <> cmd
+      cmdHelp
+    Nothing -> cmdHelp
 
-  case parseJSONL content of
-    Left err -> liftEffect $ log $ "Parse error: " <> err
+-- | bd init - initialize a beads repo
+cmdInit :: Aff Unit
+cmdInit = do
+  result <- try $ App.initRepo
+  case result of
+    Left err -> liftEffect $ log $ "Error: " <> message err
+    Right { created, path } ->
+      if created
+        then liftEffect $ log $ "Initialized beads repo at " <> path
+        else liftEffect $ log $ "Beads repo already exists at " <> path
+
+-- | bd create "title" [-p priority] [-d description]
+cmdCreate :: Array String -> Aff Unit
+cmdCreate args = do
+  case head args of
+    Nothing -> liftEffect $ log "Usage: bd create \"title\" [-p priority]"
+    Just title -> do
+      let priority = fromMaybe 2 $ parseFlag "-p" args >>= parseInt
+      let description = parseFlag "-d" args
+      result <- try $ App.createIssue title description priority
+      case result of
+        Left err -> liftEffect $ log $ "Error: " <> message err
+        Right { id } -> do
+          liftEffect $ log $ "Created: " <> showId id
+          liftEffect $ log $ "  Title: " <> title
+          liftEffect $ log $ "  Priority: P" <> show priority
+
+-- | bd ready [-n limit]
+cmdReady :: Array String -> Aff Unit
+cmdReady args = do
+  let limit = fromMaybe 10 $ parseFlag "-n" args >>= parseInt
+  result <- try $ App.getReady
+  case result of
+    Left err -> liftEffect $ log $ "Error: " <> message err
     Right issues -> do
-      -- Build the store
-      let store = Store.fromArray issues
-
-      liftEffect $ log $ "Loaded " <> show (Store.size store) <> " issues into Store"
+      liftEffect $ log "Ready issues (by priority):"
       liftEffect $ log ""
+      for_ (take limit issues) \issue -> do
+        liftEffect $ log $ formatIssue issue
 
-      -- Run queries
-      let s = Q.stats store
-      liftEffect $ log "=== Statistics ==="
+-- | bd close <id> "reason"
+cmdClose :: Array String -> Aff Unit
+cmdClose args = do
+  case args !! 0, args !! 1 of
+    Just idStr, Just reason -> do
+      let id = IssueId idStr
+      result <- try $ App.closeIssue id reason
+      case result of
+        Left err -> liftEffect $ log $ "Error: " <> message err
+        Right _ -> liftEffect $ log $ "Closed: " <> idStr
+    _, _ -> liftEffect $ log "Usage: bd close <id> \"reason\""
+
+-- | bd list [-n limit]
+cmdList :: Array String -> Aff Unit
+cmdList args = do
+  let limit = fromMaybe 20 $ parseFlag "-n" args >>= parseInt
+  result <- try $ App.getOpen
+  case result of
+    Left err -> liftEffect $ log $ "Error: " <> message err
+    Right issues -> do
+      liftEffect $ log "Open issues:"
+      liftEffect $ log ""
+      for_ (take limit issues) \issue -> do
+        liftEffect $ log $ formatIssue issue
+
+-- | bd stats
+cmdStats :: Aff Unit
+cmdStats = do
+  result <- try $ App.getStats
+  case result of
+    Left err -> liftEffect $ log $ "Error: " <> message err
+    Right s -> do
+      liftEffect $ log "Statistics:"
       liftEffect $ log $ "  Total:   " <> show s.total
       liftEffect $ log $ "  Open:    " <> show s.open
       liftEffect $ log $ "  Closed:  " <> show s.closed
       liftEffect $ log $ "  Ready:   " <> show s.ready
       liftEffect $ log $ "  Blocked: " <> show s.blocked
-      liftEffect $ log ""
 
-      -- Show top 5 ready issues
-      let readyIssues = Q.readyByPriority store
-      liftEffect $ log "=== Ready Issues (top 5) ==="
-      for_ (take 5 readyIssues) \issue -> do
-        liftEffect $ log $ formatIssue issue
-      liftEffect $ log ""
+-- | bd help
+cmdHelp :: Aff Unit
+cmdHelp = liftEffect do
+  log "beads-purs - A PureScript issue tracker"
+  log ""
+  log "Commands:"
+  log "  init              Initialize a beads repo in current directory"
+  log "  create \"title\"    Create a new issue"
+  log "    -p <priority>   Set priority (0-4, default 2)"
+  log "    -d \"desc\"       Set description"
+  log "  ready             Show issues ready to work on"
+  log "    -n <limit>      Limit results (default 10)"
+  log "  close <id> \"why\"  Close an issue with reason"
+  log "  list              Show all open issues"
+  log "    -n <limit>      Limit results (default 20)"
+  log "  stats             Show statistics"
+  log "  help              Show this help"
 
-      -- Demonstrate pure commands
-      liftEffect $ log "=== Command Demo ==="
+-- | Parse a flag value like "-p 2" from args
+parseFlag :: String -> Array String -> Maybe String
+parseFlag flag args = go 0
+  where
+  go i = case args !! i of
+    Just f | f == flag -> args !! (i + 1)
+    Just _ -> go (i + 1)
+    Nothing -> Nothing
 
-      -- Simulate creating a new issue
-      newId <- liftEffect generateId
-      let timestamp = "2025-01-28T12:00:00Z"
-      let newIssue =
-            { title: "Port beads to PureScript"
-            , description: Just "A cleaner, type-safe implementation"
-            , priority: 1
-            , issueType: Just "feature"
-            , labels: ["purescript", "port"]
-            , assignee: Nothing
-            }
+-- | Parse an integer
+parseInt :: String -> Maybe Int
+parseInt s = case String.toCodePointArray s of
+  _ -> Just (unsafeParseInt s)  -- TODO: proper parsing
 
-      case Cmd.create newId timestamp newIssue store of
-        Left err -> liftEffect $ log $ "Create failed: " <> show err
-        Right store' -> do
-          liftEffect $ log $ "Created issue: " <> show newId
-          liftEffect $ log $ "  Store size: " <> show (Store.size store) <> " -> " <> show (Store.size store')
+foreign import unsafeParseInt :: String -> Int
 
-          -- Now close it
-          case Cmd.close newId timestamp "Completed the port!" store' of
-            Left err -> liftEffect $ log $ "Close failed: " <> show err
-            Right store'' -> do
-              liftEffect $ log $ "Closed issue: " <> show newId
-
-              -- Check stats changed
-              let s' = Q.stats store''
-              liftEffect $ log $ "  Ready count: " <> show s.ready <> " -> " <> show s'.ready
-              liftEffect $ log $ "  Closed count: " <> show s.closed <> " -> " <> show s'.closed
-
-      liftEffect $ log ""
-      liftEffect $ log "=== Architecture Demo Complete ==="
-      liftEffect $ log "Pure commands, immutable store, effects only at edges"
-
+-- | Format an issue for display
 formatIssue :: Issue -> String
 formatIssue issue =
-  "  [P" <> show issue.priority <> "] " <> showId issue.id <> ": " <> truncate 50 issue.title
-  where
-  showId (IssueId s) = s
+  "[P" <> show issue.priority <> "] " <> showId issue.id <> ": " <> truncate 60 issue.title
 
-  truncate :: Int -> String -> String
-  truncate n s =
-    if String.length s <= n
-      then s
-      else String.take n s <> "..."
+showId :: IssueId -> String
+showId (IssueId s) = s
+
+truncate :: Int -> String -> String
+truncate n s =
+  if String.length s <= n
+    then s
+    else String.take n s <> "..."
