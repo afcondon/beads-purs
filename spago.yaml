@@ -1,0 +1,32 @@
+package:
+  name: beads-purs
+  dependencies:
+    - aff
+    - argonaut-codecs
+    - console
+    - argonaut-core
+    - arrays
+    - datetime
+    - effect
+    - either
+    - foldable-traversable
+    - foreign-object
+    - formatters
+    - maybe
+    - newtype
+    - node-buffer
+    - node-fs
+    - node-path
+    - node-process
+    - ordered-collections
+    - prelude
+    - strings
+    - transformers
+    - tuples
+    - uuid
+    - random
+
+workspace:
+  packageSet:
+    registry: 60.5.0
+  extraPackages: {}

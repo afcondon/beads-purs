@@ -1,0 +1,17 @@
+# PureScript
+.spago/
+output/
+.psc-ide-port
+.psa-stash
+
+# Node
+node_modules/
+
+# Editor
+*.swp
+*~
+.idea/
+.vscode/
+
+# OS
+.DS_Store
