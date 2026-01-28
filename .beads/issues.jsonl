@@ -4,3 +4,4 @@
 {"id":"bd-6fef","title":"Add bd edit command for modifying issues","status":"open","priority":3,"issue_type":"task","created_at":"2026-01-28T12:30:39Z","updated_at":"2026-01-28T12:30:39Z"}
 {"id":"bd-d72e","title":"Bundle to standalone executable script","status":"closed","priority":1,"issue_type":"task","created_at":"2026-01-28T12:30:38Z","updated_at":"2026-01-28T12:34:13Z","closed_at":"2026-01-28T12:34:13Z","close_reason":"Bundled to bin/bd.js with wrapper script"}
 {"id":"bd-df8f","title":"Implement full-text search in bd list","status":"open","priority":2,"issue_type":"task","created_at":"2026-01-28T12:30:37Z","updated_at":"2026-01-28T12:30:37Z"}
+{"id":"bd-f9d4","title":"test","status":"open","priority":4,"issue_type":"task","created_at":"2026-01-28T12:46:47Z","updated_at":"2026-01-28T12:46:47Z"}
