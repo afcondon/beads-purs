@@ -4,6 +4,9 @@
 // output/Main/foreign.js
 var unsafeParseInt = (s) => parseInt(s, 10) || 0;
 
+// output/Beads.App/foreign.js
+var isInfixOf = (needle) => (haystack) => haystack.toLowerCase().includes(needle.toLowerCase());
+
 // output/Control.Bind/foreign.js
 var arrayBind = function(arr) {
   return function(f) {
@@ -87,6 +90,15 @@ var arrayMap = function(f) {
 
 // output/Data.Unit/foreign.js
 var unit = void 0;
+
+// output/Type.Proxy/index.js
+var $$Proxy = /* @__PURE__ */ (function() {
+  function $$Proxy2() {
+  }
+  ;
+  $$Proxy2.value = new $$Proxy2();
+  return $$Proxy2;
+})();
 
 // output/Data.Functor/index.js
 var map = function(dict) {
@@ -230,13 +242,56 @@ var refEq = function(r1) {
     return r1 === r2;
   };
 };
+var eqBooleanImpl = refEq;
 var eqIntImpl = refEq;
 var eqCharImpl = refEq;
 var eqStringImpl = refEq;
+var eqArrayImpl = function(f) {
+  return function(xs) {
+    return function(ys) {
+      if (xs.length !== ys.length) return false;
+      for (var i = 0; i < xs.length; i++) {
+        if (!f(xs[i])(ys[i])) return false;
+      }
+      return true;
+    };
+  };
+};
+
+// output/Data.Symbol/index.js
+var reflectSymbol = function(dict) {
+  return dict.reflectSymbol;
+};
+
+// output/Record.Unsafe/foreign.js
+var unsafeGet = function(label) {
+  return function(rec) {
+    return rec[label];
+  };
+};
 
 // output/Data.Eq/index.js
 var eqString = {
   eq: eqStringImpl
+};
+var eqRowNil = {
+  eqRecord: function(v) {
+    return function(v1) {
+      return function(v2) {
+        return true;
+      };
+    };
+  }
+};
+var eqRecord = function(dict) {
+  return dict.eqRecord;
+};
+var eqRec = function() {
+  return function(dictEqRecord) {
+    return {
+      eq: eqRecord(dictEqRecord)($$Proxy.value)
+    };
+  };
 };
 var eqInt = {
   eq: eqIntImpl
@@ -244,8 +299,48 @@ var eqInt = {
 var eqChar = {
   eq: eqCharImpl
 };
+var eqBoolean = {
+  eq: eqBooleanImpl
+};
 var eq = function(dict) {
   return dict.eq;
+};
+var eq2 = /* @__PURE__ */ eq(eqBoolean);
+var eqArray = function(dictEq) {
+  return {
+    eq: eqArrayImpl(eq(dictEq))
+  };
+};
+var eqRowCons = function(dictEqRecord) {
+  var eqRecord1 = eqRecord(dictEqRecord);
+  return function() {
+    return function(dictIsSymbol) {
+      var reflectSymbol2 = reflectSymbol(dictIsSymbol);
+      return function(dictEq) {
+        var eq3 = eq(dictEq);
+        return {
+          eqRecord: function(v) {
+            return function(ra) {
+              return function(rb) {
+                var tail2 = eqRecord1($$Proxy.value)(ra)(rb);
+                var key = reflectSymbol2($$Proxy.value);
+                var get3 = unsafeGet(key);
+                return eq3(get3(ra))(get3(rb)) && tail2;
+              };
+            };
+          }
+        };
+      };
+    };
+  };
+};
+var notEq = function(dictEq) {
+  var eq3 = eq(dictEq);
+  return function(x) {
+    return function(y) {
+      return eq2(eq3(x)(y))(false);
+    };
+  };
 };
 
 // output/Data.Semigroup/foreign.js
@@ -288,11 +383,11 @@ var bottomNumber = Number.NEGATIVE_INFINITY;
 
 // output/Data.Ord/foreign.js
 var unsafeCompareImpl = function(lt) {
-  return function(eq2) {
+  return function(eq3) {
     return function(gt) {
       return function(x) {
         return function(y) {
-          return x < y ? lt : x === y ? eq2 : gt;
+          return x < y ? lt : x === y ? eq3 : gt;
         };
       };
     };
@@ -542,6 +637,38 @@ var showArray = function(dictShow) {
   };
 };
 
+// output/Data.Generic.Rep/index.js
+var Inl = /* @__PURE__ */ (function() {
+  function Inl2(value0) {
+    this.value0 = value0;
+  }
+  ;
+  Inl2.create = function(value0) {
+    return new Inl2(value0);
+  };
+  return Inl2;
+})();
+var Inr = /* @__PURE__ */ (function() {
+  function Inr2(value0) {
+    this.value0 = value0;
+  }
+  ;
+  Inr2.create = function(value0) {
+    return new Inr2(value0);
+  };
+  return Inr2;
+})();
+var NoArguments = /* @__PURE__ */ (function() {
+  function NoArguments2() {
+  }
+  ;
+  NoArguments2.value = new NoArguments2();
+  return NoArguments2;
+})();
+var from = function(dict) {
+  return dict.from;
+};
+
 // output/Data.Maybe/index.js
 var identity3 = /* @__PURE__ */ identity(categoryFn);
 var Nothing = /* @__PURE__ */ (function() {
@@ -599,6 +726,24 @@ var fromJust = function() {
     }
     ;
     throw new Error("Failed pattern match at Data.Maybe (line 288, column 1 - line 288, column 46): " + [v.constructor.name]);
+  };
+};
+var eqMaybe = function(dictEq) {
+  var eq3 = eq(dictEq);
+  return {
+    eq: function(x) {
+      return function(y) {
+        if (x instanceof Nothing && y instanceof Nothing) {
+          return true;
+        }
+        ;
+        if (x instanceof Just && y instanceof Just) {
+          return eq3(x.value0)(y.value0);
+        }
+        ;
+        return false;
+      };
+    }
   };
 };
 var applyMaybe = {
@@ -683,12 +828,12 @@ var foreach = function(as) {
 // output/Control.Monad/index.js
 var ap = function(dictMonad) {
   var bind6 = bind(dictMonad.Bind1());
-  var pure5 = pure(dictMonad.Applicative0());
+  var pure6 = pure(dictMonad.Applicative0());
   return function(f) {
     return function(a) {
       return bind6(f)(function(f$prime) {
         return bind6(a)(function(a$prime) {
-          return pure5(f$prime(a$prime));
+          return pure6(f$prime(a$prime));
         });
       });
     };
@@ -1133,6 +1278,51 @@ var defer = function(dict) {
   return dict.defer;
 };
 
+// output/Data.Array.ST/foreign.js
+function unsafeFreezeThawImpl(xs) {
+  return xs;
+}
+var unsafeFreezeImpl = unsafeFreezeThawImpl;
+function copyImpl(xs) {
+  return xs.slice();
+}
+var thawImpl = copyImpl;
+var pushImpl = function(a, xs) {
+  return xs.push(a);
+};
+
+// output/Control.Monad.ST.Uncurried/foreign.js
+var runSTFn1 = function runSTFn12(fn) {
+  return function(a) {
+    return function() {
+      return fn(a);
+    };
+  };
+};
+var runSTFn2 = function runSTFn22(fn) {
+  return function(a) {
+    return function(b) {
+      return function() {
+        return fn(a, b);
+      };
+    };
+  };
+};
+
+// output/Data.Array.ST/index.js
+var unsafeFreeze = /* @__PURE__ */ runSTFn1(unsafeFreezeImpl);
+var thaw = /* @__PURE__ */ runSTFn1(thawImpl);
+var withArray = function(f) {
+  return function(xs) {
+    return function __do4() {
+      var result = thaw(xs)();
+      f(result)();
+      return unsafeFreeze(result)();
+    };
+  };
+};
+var push = /* @__PURE__ */ runSTFn2(pushImpl);
+
 // output/Data.HeytingAlgebra/foreign.js
 var boolConj = function(b1) {
   return function(b2) {
@@ -1313,13 +1503,13 @@ var foldr = function(dict) {
 };
 var traverse_ = function(dictApplicative) {
   var applySecond2 = applySecond(dictApplicative.Apply0());
-  var pure5 = pure(dictApplicative);
+  var pure6 = pure(dictApplicative);
   return function(dictFoldable) {
     var foldr2 = foldr(dictFoldable);
     return function(f) {
       return foldr2(function($454) {
         return applySecond2(f($454));
-      })(pure5(unit));
+      })(pure6(unit));
     };
   };
 };
@@ -1335,7 +1525,7 @@ var foldl = function(dict) {
 var intercalate = function(dictFoldable) {
   var foldl2 = foldl(dictFoldable);
   return function(dictMonoid) {
-    var append4 = append(dictMonoid.Semigroup0());
+    var append5 = append(dictMonoid.Semigroup0());
     var mempty2 = mempty(dictMonoid);
     return function(sep) {
       return function(xs) {
@@ -1350,7 +1540,7 @@ var intercalate = function(dictFoldable) {
             ;
             return {
               init: false,
-              acc: append4(v.acc)(append4(sep)(v1))
+              acc: append5(v.acc)(append5(sep)(v1))
             };
           };
         };
@@ -1365,12 +1555,12 @@ var intercalate = function(dictFoldable) {
 var foldMapDefaultR = function(dictFoldable) {
   var foldr2 = foldr(dictFoldable);
   return function(dictMonoid) {
-    var append4 = append(dictMonoid.Semigroup0());
+    var append5 = append(dictMonoid.Semigroup0());
     var mempty2 = mempty(dictMonoid);
     return function(f) {
       return foldr2(function(x) {
         return function(acc) {
-          return append4(f(x))(acc);
+          return append5(f(x))(acc);
         };
       })(mempty2);
     };
@@ -1474,13 +1664,13 @@ var traverseArrayImpl = /* @__PURE__ */ (function() {
   }
   return function(apply2) {
     return function(map13) {
-      return function(pure5) {
+      return function(pure6) {
         return function(f) {
           return function(array) {
             function go(bot, top3) {
               switch (top3 - bot) {
                 case 0:
-                  return pure5([]);
+                  return pure6([]);
                 case 1:
                   return map13(array1)(f(array[bot]));
                 case 2:
@@ -1614,6 +1804,11 @@ var sortBy = function(comp) {
     throw new Error("Failed pattern match at Data.Array (line 897, column 38 - line 900, column 11): " + [v.constructor.name]);
   });
 };
+var snoc = function(xs) {
+  return function(x) {
+    return withArray(push(x))(xs)();
+  };
+};
 var slice = /* @__PURE__ */ runFn3(sliceImpl);
 var take = function(n) {
   return function(xs) {
@@ -1642,10 +1837,10 @@ var findIndex = /* @__PURE__ */ (function() {
 })();
 var filter = /* @__PURE__ */ runFn2(filterImpl);
 var elemIndex = function(dictEq) {
-  var eq2 = eq(dictEq);
+  var eq22 = eq(dictEq);
   return function(x) {
     return findIndex(function(v) {
-      return eq2(v)(x);
+      return eq22(v)(x);
     });
   };
 };
@@ -1704,13 +1899,13 @@ var foldrWithIndex = function(dict) {
 var foldMapWithIndexDefaultR = function(dictFoldableWithIndex) {
   var foldrWithIndex1 = foldrWithIndex(dictFoldableWithIndex);
   return function(dictMonoid) {
-    var append4 = append(dictMonoid.Semigroup0());
+    var append5 = append(dictMonoid.Semigroup0());
     var mempty2 = mempty(dictMonoid);
     return function(f) {
       return foldrWithIndex1(function(i) {
         return function(x) {
           return function(acc) {
-            return append4(f(i)(x))(acc);
+            return append5(f(i)(x))(acc);
           };
         };
       })(mempty2);
@@ -2131,10 +2326,10 @@ var some2 = function(dictAlternative) {
 };
 var many2 = function(dictAlternative) {
   var alt3 = alt(dictAlternative.Plus1().Alt0());
-  var pure5 = pure(dictAlternative.Applicative0());
+  var pure6 = pure(dictAlternative.Applicative0());
   return function(dictLazy) {
     return function(v) {
-      return alt3(some2(dictAlternative)(dictLazy)(v))(pure5(Nil.value));
+      return alt3(some2(dictAlternative)(dictLazy)(v))(pure6(Nil.value));
     };
   };
 };
@@ -3089,7 +3284,74 @@ var encodeJsonArray = function(dictEncodeJson) {
   };
 };
 
+// output/Data.Show.Generic/foreign.js
+var intercalate4 = function(separator) {
+  return function(xs) {
+    return xs.join(separator);
+  };
+};
+
+// output/Data.Show.Generic/index.js
+var append3 = /* @__PURE__ */ append(semigroupArray);
+var genericShowArgsNoArguments = {
+  genericShowArgs: function(v) {
+    return [];
+  }
+};
+var genericShowArgs = function(dict) {
+  return dict.genericShowArgs;
+};
+var genericShowConstructor = function(dictGenericShowArgs) {
+  var genericShowArgs1 = genericShowArgs(dictGenericShowArgs);
+  return function(dictIsSymbol) {
+    var reflectSymbol2 = reflectSymbol(dictIsSymbol);
+    return {
+      "genericShow'": function(v) {
+        var ctor = reflectSymbol2($$Proxy.value);
+        var v1 = genericShowArgs1(v);
+        if (v1.length === 0) {
+          return ctor;
+        }
+        ;
+        return "(" + (intercalate4(" ")(append3([ctor])(v1)) + ")");
+      }
+    };
+  };
+};
+var genericShow$prime = function(dict) {
+  return dict["genericShow'"];
+};
+var genericShowSum = function(dictGenericShow) {
+  var genericShow$prime1 = genericShow$prime(dictGenericShow);
+  return function(dictGenericShow1) {
+    var genericShow$prime2 = genericShow$prime(dictGenericShow1);
+    return {
+      "genericShow'": function(v) {
+        if (v instanceof Inl) {
+          return genericShow$prime1(v.value0);
+        }
+        ;
+        if (v instanceof Inr) {
+          return genericShow$prime2(v.value0);
+        }
+        ;
+        throw new Error("Failed pattern match at Data.Show.Generic (line 26, column 1 - line 28, column 40): " + [v.constructor.name]);
+      }
+    };
+  };
+};
+var genericShow = function(dictGeneric) {
+  var from3 = from(dictGeneric);
+  return function(dictGenericShow) {
+    var genericShow$prime1 = genericShow$prime(dictGenericShow);
+    return function(x) {
+      return genericShow$prime1(from3(x));
+    };
+  };
+};
+
 // output/Beads.Core.Types/index.js
+var genericShowConstructor2 = /* @__PURE__ */ genericShowConstructor(genericShowArgsNoArguments);
 var compare3 = /* @__PURE__ */ compare(ordString);
 var bind2 = /* @__PURE__ */ bind(bindEither);
 var Open = /* @__PURE__ */ (function() {
@@ -3163,6 +3425,89 @@ var DiscoveredFrom = /* @__PURE__ */ (function() {
   return DiscoveredFrom2;
 })();
 var showIssueId = showString;
+var genericStatus_ = {
+  to: function(x) {
+    if (x instanceof Inl) {
+      return Open.value;
+    }
+    ;
+    if (x instanceof Inr && x.value0 instanceof Inl) {
+      return InProgress.value;
+    }
+    ;
+    if (x instanceof Inr && (x.value0 instanceof Inr && x.value0.value0 instanceof Inl)) {
+      return Blocked.value;
+    }
+    ;
+    if (x instanceof Inr && (x.value0 instanceof Inr && (x.value0.value0 instanceof Inr && x.value0.value0.value0 instanceof Inl))) {
+      return Deferred.value;
+    }
+    ;
+    if (x instanceof Inr && (x.value0 instanceof Inr && (x.value0.value0 instanceof Inr && (x.value0.value0.value0 instanceof Inr && x.value0.value0.value0.value0 instanceof Inl)))) {
+      return Closed.value;
+    }
+    ;
+    if (x instanceof Inr && (x.value0 instanceof Inr && (x.value0.value0 instanceof Inr && (x.value0.value0.value0 instanceof Inr && x.value0.value0.value0.value0 instanceof Inr)))) {
+      return Tombstone.value;
+    }
+    ;
+    throw new Error("Failed pattern match at Beads.Core.Types (line 40, column 1 - line 40, column 33): " + [x.constructor.name]);
+  },
+  from: function(x) {
+    if (x instanceof Open) {
+      return new Inl(NoArguments.value);
+    }
+    ;
+    if (x instanceof InProgress) {
+      return new Inr(new Inl(NoArguments.value));
+    }
+    ;
+    if (x instanceof Blocked) {
+      return new Inr(new Inr(new Inl(NoArguments.value)));
+    }
+    ;
+    if (x instanceof Deferred) {
+      return new Inr(new Inr(new Inr(new Inl(NoArguments.value))));
+    }
+    ;
+    if (x instanceof Closed) {
+      return new Inr(new Inr(new Inr(new Inr(new Inl(NoArguments.value)))));
+    }
+    ;
+    if (x instanceof Tombstone) {
+      return new Inr(new Inr(new Inr(new Inr(new Inr(NoArguments.value)))));
+    }
+    ;
+    throw new Error("Failed pattern match at Beads.Core.Types (line 40, column 1 - line 40, column 33): " + [x.constructor.name]);
+  }
+};
+var showStatus = {
+  show: /* @__PURE__ */ genericShow(genericStatus_)(/* @__PURE__ */ genericShowSum(/* @__PURE__ */ genericShowConstructor2({
+    reflectSymbol: function() {
+      return "Open";
+    }
+  }))(/* @__PURE__ */ genericShowSum(/* @__PURE__ */ genericShowConstructor2({
+    reflectSymbol: function() {
+      return "InProgress";
+    }
+  }))(/* @__PURE__ */ genericShowSum(/* @__PURE__ */ genericShowConstructor2({
+    reflectSymbol: function() {
+      return "Blocked";
+    }
+  }))(/* @__PURE__ */ genericShowSum(/* @__PURE__ */ genericShowConstructor2({
+    reflectSymbol: function() {
+      return "Deferred";
+    }
+  }))(/* @__PURE__ */ genericShowSum(/* @__PURE__ */ genericShowConstructor2({
+    reflectSymbol: function() {
+      return "Closed";
+    }
+  }))(/* @__PURE__ */ genericShowConstructor2({
+    reflectSymbol: function() {
+      return "Tombstone";
+    }
+  })))))))
+};
 var eqIssueId = {
   eq: function(x) {
     return function(y) {
@@ -3178,6 +3523,29 @@ var ordIssueId = {
   },
   Eq0: function() {
     return eqIssueId;
+  }
+};
+var eqDependencyType = {
+  eq: function(x) {
+    return function(y) {
+      if (x instanceof Blocks && y instanceof Blocks) {
+        return true;
+      }
+      ;
+      if (x instanceof ParentChild && y instanceof ParentChild) {
+        return true;
+      }
+      ;
+      if (x instanceof Related && y instanceof Related) {
+        return true;
+      }
+      ;
+      if (x instanceof DiscoveredFrom && y instanceof DiscoveredFrom) {
+        return true;
+      }
+      ;
+      return false;
+    };
   }
 };
 var encodeJsonIssueId = encodeJsonJString;
@@ -3359,6 +3727,30 @@ var empty4 = empty3;
 
 // output/Beads.Core.Commands/index.js
 var show3 = /* @__PURE__ */ show(showIssueId);
+var notEq2 = /* @__PURE__ */ notEq(eqIssueId);
+var eqMaybe2 = /* @__PURE__ */ eqMaybe(eqString);
+var notEq3 = /* @__PURE__ */ notEq(/* @__PURE__ */ eqArray(/* @__PURE__ */ eqRec()(/* @__PURE__ */ eqRowCons(/* @__PURE__ */ eqRowCons(/* @__PURE__ */ eqRowCons(/* @__PURE__ */ eqRowCons(/* @__PURE__ */ eqRowCons(eqRowNil)()({
+  reflectSymbol: function() {
+    return "issueId";
+  }
+})(eqIssueId))()({
+  reflectSymbol: function() {
+    return "dependsOnId";
+  }
+})(eqIssueId))()({
+  reflectSymbol: function() {
+    return "depType";
+  }
+})(eqDependencyType))()({
+  reflectSymbol: function() {
+    return "createdBy";
+  }
+})(eqMaybe2))()({
+  reflectSymbol: function() {
+    return "createdAt";
+  }
+})(eqMaybe2))));
+var eq12 = /* @__PURE__ */ eq(eqIssueId);
 var IssueNotFound = /* @__PURE__ */ (function() {
   function IssueNotFound2(value0) {
     this.value0 = value0;
@@ -3420,6 +3812,164 @@ var showCommandError = {
     throw new Error("Failed pattern match at Beads.Core.Commands (line 20, column 10 - line 24, column 70): " + [v.constructor.name]);
   }
 };
+var removeDepFromIssue = function(toId) {
+  return function(issue) {
+    return {
+      id: issue.id,
+      title: issue.title,
+      description: issue.description,
+      status: issue.status,
+      priority: issue.priority,
+      issueType: issue.issueType,
+      assignee: issue.assignee,
+      estimatedMinutes: issue.estimatedMinutes,
+      createdAt: issue.createdAt,
+      createdBy: issue.createdBy,
+      updatedAt: issue.updatedAt,
+      closedAt: issue.closedAt,
+      closeReason: issue.closeReason,
+      labels: issue.labels,
+      comments: issue.comments,
+      externalRef: issue.externalRef,
+      design: issue.design,
+      acceptanceCriteria: issue.acceptanceCriteria,
+      notes: issue.notes,
+      deletedAt: issue.deletedAt,
+      deletedBy: issue.deletedBy,
+      deleteReason: issue.deleteReason,
+      originalType: issue.originalType,
+      dependencies: filter(function(d) {
+        return notEq2(d.dependsOnId)(toId);
+      })(issue.dependencies)
+    };
+  };
+};
+var modify3 = function(id2) {
+  return function(timestamp) {
+    return function(f) {
+      return function(store) {
+        var v = lookup3(id2)(store);
+        if (v instanceof Nothing) {
+          return new Left(new IssueNotFound(id2));
+        }
+        ;
+        if (v instanceof Just) {
+          var updated = f(v.value0);
+          var withTimestamp = {
+            acceptanceCriteria: updated.acceptanceCriteria,
+            assignee: updated.assignee,
+            closeReason: updated.closeReason,
+            closedAt: updated.closedAt,
+            comments: updated.comments,
+            createdAt: updated.createdAt,
+            createdBy: updated.createdBy,
+            deleteReason: updated.deleteReason,
+            deletedAt: updated.deletedAt,
+            deletedBy: updated.deletedBy,
+            dependencies: updated.dependencies,
+            description: updated.description,
+            design: updated.design,
+            estimatedMinutes: updated.estimatedMinutes,
+            externalRef: updated.externalRef,
+            id: updated.id,
+            issueType: updated.issueType,
+            labels: updated.labels,
+            notes: updated.notes,
+            originalType: updated.originalType,
+            priority: updated.priority,
+            status: updated.status,
+            title: updated.title,
+            updatedAt: timestamp
+          };
+          return new Right(insert5(withTimestamp)(store));
+        }
+        ;
+        throw new Error("Failed pattern match at Beads.Core.Commands (line 80, column 3 - line 85, column 50): " + [v.constructor.name]);
+      };
+    };
+  };
+};
+var removeDep = function(fromId) {
+  return function(toId) {
+    return function(timestamp) {
+      return function(store) {
+        return modify3(fromId)(timestamp)(removeDepFromIssue(toId))(store);
+      };
+    };
+  };
+};
+var setPriority = function(id2) {
+  return function(timestamp) {
+    return function(priority) {
+      return function(store) {
+        return modify3(id2)(timestamp)(function(v) {
+          return {
+            id: v.id,
+            title: v.title,
+            description: v.description,
+            status: v.status,
+            issueType: v.issueType,
+            assignee: v.assignee,
+            estimatedMinutes: v.estimatedMinutes,
+            createdAt: v.createdAt,
+            createdBy: v.createdBy,
+            updatedAt: v.updatedAt,
+            closedAt: v.closedAt,
+            closeReason: v.closeReason,
+            labels: v.labels,
+            dependencies: v.dependencies,
+            comments: v.comments,
+            externalRef: v.externalRef,
+            design: v.design,
+            acceptanceCriteria: v.acceptanceCriteria,
+            notes: v.notes,
+            deletedAt: v.deletedAt,
+            deletedBy: v.deletedBy,
+            deleteReason: v.deleteReason,
+            originalType: v.originalType,
+            priority
+          };
+        })(store);
+      };
+    };
+  };
+};
+var setTitle = function(id2) {
+  return function(timestamp) {
+    return function(title2) {
+      return function(store) {
+        return modify3(id2)(timestamp)(function(v) {
+          return {
+            id: v.id,
+            description: v.description,
+            status: v.status,
+            priority: v.priority,
+            issueType: v.issueType,
+            assignee: v.assignee,
+            estimatedMinutes: v.estimatedMinutes,
+            createdAt: v.createdAt,
+            createdBy: v.createdBy,
+            updatedAt: v.updatedAt,
+            closedAt: v.closedAt,
+            closeReason: v.closeReason,
+            labels: v.labels,
+            dependencies: v.dependencies,
+            comments: v.comments,
+            externalRef: v.externalRef,
+            design: v.design,
+            acceptanceCriteria: v.acceptanceCriteria,
+            notes: v.notes,
+            deletedAt: v.deletedAt,
+            deletedBy: v.deletedBy,
+            deleteReason: v.deleteReason,
+            originalType: v.originalType,
+            title: title2
+          };
+        })(store);
+      };
+    };
+  };
+};
 var mkIssue = function(id2) {
   return function(timestamp) {
     return function(input) {
@@ -3448,6 +3998,21 @@ var mkIssue = function(id2) {
         deletedBy: Nothing.value,
         deleteReason: Nothing.value,
         originalType: Nothing.value
+      };
+    };
+  };
+};
+var mkDependency = function(fromId) {
+  return function(toId) {
+    return function(timestamp) {
+      return function(depType) {
+        return {
+          issueId: fromId,
+          dependsOnId: toId,
+          depType,
+          createdAt: new Just(timestamp),
+          createdBy: Nothing.value
+        };
       };
     };
   };
@@ -3528,6 +4093,78 @@ var close = function(id2) {
         }
         ;
         throw new Error("Failed pattern match at Beads.Core.Commands (line 90, column 3 - line 95, column 76): " + [v.constructor.name]);
+      };
+    };
+  };
+};
+var addDepToIssue = function(dep) {
+  return function(issue) {
+    var hasDep = function(targetId) {
+      return function(deps) {
+        return (function(v) {
+          return notEq3(v)([]);
+        })(filter(function(d) {
+          return eq12(d.dependsOnId)(targetId);
+        })(deps));
+      };
+    };
+    var $74 = hasDep(dep.dependsOnId)(issue.dependencies);
+    if ($74) {
+      return issue;
+    }
+    ;
+    return {
+      id: issue.id,
+      title: issue.title,
+      description: issue.description,
+      status: issue.status,
+      priority: issue.priority,
+      issueType: issue.issueType,
+      assignee: issue.assignee,
+      estimatedMinutes: issue.estimatedMinutes,
+      createdAt: issue.createdAt,
+      createdBy: issue.createdBy,
+      updatedAt: issue.updatedAt,
+      closedAt: issue.closedAt,
+      closeReason: issue.closeReason,
+      labels: issue.labels,
+      comments: issue.comments,
+      externalRef: issue.externalRef,
+      design: issue.design,
+      acceptanceCriteria: issue.acceptanceCriteria,
+      notes: issue.notes,
+      deletedAt: issue.deletedAt,
+      deletedBy: issue.deletedBy,
+      deleteReason: issue.deleteReason,
+      originalType: issue.originalType,
+      dependencies: snoc(issue.dependencies)(dep)
+    };
+  };
+};
+var addDep = function(fromId) {
+  return function(toId) {
+    return function(timestamp) {
+      return function(depType) {
+        return function(store) {
+          if (eq12(fromId)(toId)) {
+            return new Left(new SelfDependency(fromId));
+          }
+          ;
+          if (!member2(fromId)(store)) {
+            return new Left(new IssueNotFound(fromId));
+          }
+          ;
+          if (!member2(toId)(store)) {
+            return new Left(new IssueNotFound(toId));
+          }
+          ;
+          if (otherwise) {
+            var dep = mkDependency(fromId)(toId)(timestamp)(depType);
+            return modify3(fromId)(timestamp)(addDepToIssue(dep))(store);
+          }
+          ;
+          throw new Error("Failed pattern match at Beads.Core.Commands (line 139, column 1 - line 139, column 83): " + [fromId.constructor.name, toId.constructor.name, timestamp.constructor.name, depType.constructor.name, store.constructor.name]);
+        };
       };
     };
   };
@@ -4049,10 +4686,10 @@ var $$try = function(dictMonadError) {
   var catchError1 = catchError(dictMonadError);
   var Monad0 = dictMonadError.MonadThrow0().Monad0();
   var map13 = map(Monad0.Bind1().Apply0().Functor0());
-  var pure5 = pure(Monad0.Applicative0());
+  var pure6 = pure(Monad0.Applicative0());
   return function(a) {
     return catchError1(map13(Right.create)(a))(function($52) {
-      return pure5(Left.create($52));
+      return pure6(Left.create($52));
     });
   };
 };
@@ -7435,7 +8072,7 @@ var execSync$prime = function() {
 };
 
 // output/Node.ChildProcess/index.js
-var append3 = /* @__PURE__ */ append(semigroupArray);
+var append4 = /* @__PURE__ */ append(semigroupArray);
 var map12 = /* @__PURE__ */ map(functorEffect);
 var execSync$prime1 = /* @__PURE__ */ execSync$prime();
 var execSync$prime2 = function(cmd) {
@@ -7454,7 +8091,7 @@ var execSync$prime2 = function(cmd) {
       windowsHide: Nothing.value
     });
     var opts = {
-      stdio: append3([pipe, pipe, pipe])(fromMaybe([])(o.appendStdio)),
+      stdio: append4([pipe, pipe, pipe])(fromMaybe([])(o.appendStdio)),
       encoding: "buffer",
       cwd: fromMaybe(_undefined)(o.cwd),
       input: fromMaybe(_undefined)(o.input),
@@ -7819,6 +8456,7 @@ var when2 = /* @__PURE__ */ when(applicativeAff);
 var throwError3 = /* @__PURE__ */ throwError(monadThrowAff);
 var show8 = /* @__PURE__ */ show(showCommandError);
 var show15 = /* @__PURE__ */ show(showIssueId);
+var show23 = /* @__PURE__ */ show(showInt);
 var gitCommit = function(repoPath) {
   return function(message2) {
     var escapeForShell = function(s) {
@@ -7865,7 +8503,7 @@ var gitCommit = function(repoPath) {
         return pure1(true);
       }
       ;
-      throw new Error("Failed pattern match at Beads.App (line 107, column 3 - line 109, column 25): " + [result.constructor.name]);
+      throw new Error("Failed pattern match at Beads.App (line 108, column 3 - line 110, column 25): " + [result.constructor.name]);
     });
   };
 };
@@ -7893,7 +8531,7 @@ var getTimestamp = function __do2() {
     return v.value0;
   }
   ;
-  throw new Error("Failed pattern match at Beads.App (line 93, column 3 - line 95, column 22): " + [v.constructor.name]);
+  throw new Error("Failed pattern match at Beads.App (line 94, column 3 - line 96, column 22): " + [v.constructor.name]);
 };
 var findBeadsDir = /* @__PURE__ */ bind4(/* @__PURE__ */ liftEffect2(cwd))(function(root) {
   var beadsDir = root + "/.beads";
@@ -7915,7 +8553,7 @@ var exists = function(path) {
         return true;
       }
       ;
-      throw new Error("Failed pattern match at Beads.App (line 30, column 10 - line 32, column 20): " + [result.constructor.name]);
+      throw new Error("Failed pattern match at Beads.App (line 31, column 10 - line 33, column 20): " + [result.constructor.name]);
     })());
   });
 };
@@ -7942,10 +8580,13 @@ var initRepo = /* @__PURE__ */ bind4(/* @__PURE__ */ liftEffect2(cwd))(function(
     });
   });
 });
+var isInitialized = /* @__PURE__ */ bind4(findBeadsDir)(function(config2) {
+  return exists(config2.issuesFile);
+});
 var loadStore = function(config2) {
   return bind4(exists(config2.issuesFile))(function(fileExists) {
-    var $29 = !fileExists;
-    if ($29) {
+    var $34 = !fileExists;
+    if ($34) {
       return pure1(empty4);
     }
     ;
@@ -7959,7 +8600,14 @@ var loadStore = function(config2) {
         return pure1(fromArray(v.value0));
       }
       ;
-      throw new Error("Failed pattern match at Beads.App (line 75, column 7 - line 77, column 54): " + [v.constructor.name]);
+      throw new Error("Failed pattern match at Beads.App (line 76, column 7 - line 78, column 54): " + [v.constructor.name]);
+    });
+  });
+};
+var getIssue = function(id2) {
+  return bind4(findBeadsDir)(function(config2) {
+    return bind4(loadStore(config2))(function(store) {
+      return pure1(lookup3(id2)(store));
     });
   });
 };
@@ -7978,6 +8626,85 @@ var getStats = /* @__PURE__ */ bind4(findBeadsDir)(function(config2) {
     return pure1(stats(store));
   });
 });
+var removeDependency = function(fromId) {
+  return function(toId) {
+    return bind4(findBeadsDir)(function(config2) {
+      return bind4(loadStore(config2))(function(store) {
+        return bind4(liftEffect2(getTimestamp))(function(timestamp) {
+          var v = removeDep(fromId)(toId)(timestamp)(store);
+          if (v instanceof Left) {
+            return throwError3(error(show8(v.value0)));
+          }
+          ;
+          if (v instanceof Right) {
+            return saveStore(config2)("beads: dep rm " + (show15(fromId) + (" no longer blocked by " + show15(toId))))(v.value0);
+          }
+          ;
+          throw new Error("Failed pattern match at Beads.App (line 197, column 3 - line 200, column 105): " + [v.constructor.name]);
+        });
+      });
+    });
+  };
+};
+var searchOpen = function(query) {
+  var toLower2 = function(s) {
+    return s;
+  };
+  var contains2 = function(needle) {
+    return function(haystack) {
+      return isInfixOf(needle)(haystack);
+    };
+  };
+  return bind4(findBeadsDir)(function(config2) {
+    return bind4(loadStore(config2))(function(store) {
+      var open2 = openIssues(store);
+      var lowerQuery = toLower2(query);
+      return pure1(filter(function(i) {
+        return contains2(lowerQuery)(toLower2(i.title));
+      })(open2));
+    });
+  });
+};
+var setPriority2 = function(id2) {
+  return function(priority) {
+    return bind4(findBeadsDir)(function(config2) {
+      return bind4(loadStore(config2))(function(store) {
+        return bind4(liftEffect2(getTimestamp))(function(timestamp) {
+          var v = setPriority(id2)(timestamp)(priority)(store);
+          if (v instanceof Left) {
+            return throwError3(error(show8(v.value0)));
+          }
+          ;
+          if (v instanceof Right) {
+            return saveStore(config2)("beads: edit " + (show15(id2) + (" priority: P" + show23(priority))))(v.value0);
+          }
+          ;
+          throw new Error("Failed pattern match at Beads.App (line 221, column 3 - line 224, column 93): " + [v.constructor.name]);
+        });
+      });
+    });
+  };
+};
+var setTitle2 = function(id2) {
+  return function(title2) {
+    return bind4(findBeadsDir)(function(config2) {
+      return bind4(loadStore(config2))(function(store) {
+        return bind4(liftEffect2(getTimestamp))(function(timestamp) {
+          var v = setTitle(id2)(timestamp)(title2)(store);
+          if (v instanceof Left) {
+            return throwError3(error(show8(v.value0)));
+          }
+          ;
+          if (v instanceof Right) {
+            return saveStore(config2)("beads: edit " + (show15(id2) + (" title: " + title2)))(v.value0);
+          }
+          ;
+          throw new Error("Failed pattern match at Beads.App (line 209, column 3 - line 212, column 81): " + [v.constructor.name]);
+        });
+      });
+    });
+  };
+};
 var createIssue = function(title2) {
   return function(description) {
     return function(priority) {
@@ -8007,7 +8734,7 @@ var createIssue = function(title2) {
                 });
               }
               ;
-              throw new Error("Failed pattern match at Beads.App (line 130, column 3 - line 134, column 33): " + [v.constructor.name]);
+              throw new Error("Failed pattern match at Beads.App (line 131, column 3 - line 135, column 33): " + [v.constructor.name]);
             });
           });
         });
@@ -8031,7 +8758,27 @@ var closeIssue = function(id2) {
             });
           }
           ;
-          throw new Error("Failed pattern match at Beads.App (line 143, column 3 - line 147, column 18): " + [v.constructor.name]);
+          throw new Error("Failed pattern match at Beads.App (line 144, column 3 - line 148, column 18): " + [v.constructor.name]);
+        });
+      });
+    });
+  };
+};
+var addDependency = function(fromId) {
+  return function(toId) {
+    return bind4(findBeadsDir)(function(config2) {
+      return bind4(loadStore(config2))(function(store) {
+        return bind4(liftEffect2(getTimestamp))(function(timestamp) {
+          var v = addDep(fromId)(toId)(timestamp)(Blocks.value)(store);
+          if (v instanceof Left) {
+            return throwError3(error(show8(v.value0)));
+          }
+          ;
+          if (v instanceof Right) {
+            return saveStore(config2)("beads: dep add " + (show15(fromId) + (" blocked by " + show15(toId))))(v.value0);
+          }
+          ;
+          throw new Error("Failed pattern match at Beads.App (line 185, column 3 - line 188, column 96): " + [v.constructor.name]);
         });
       });
     });
@@ -8046,26 +8793,62 @@ var log2 = function(s) {
 };
 
 // output/Main/index.js
-var show9 = /* @__PURE__ */ show(showInt);
 var bind5 = /* @__PURE__ */ bind(bindAff);
-var $$try4 = /* @__PURE__ */ $$try(monadErrorAff);
 var liftEffect3 = /* @__PURE__ */ liftEffect(monadEffectAff);
+var show9 = /* @__PURE__ */ show(showInt);
+var $$try4 = /* @__PURE__ */ $$try(monadErrorAff);
 var discard3 = /* @__PURE__ */ discard(discardUnit);
 var discard1 = /* @__PURE__ */ discard3(bindAff);
-var bind13 = /* @__PURE__ */ bind(bindMaybe);
+var show16 = /* @__PURE__ */ show(showStatus);
+var pure5 = /* @__PURE__ */ pure(applicativeAff);
+var when3 = /* @__PURE__ */ when(applicativeAff);
+var notEq4 = /* @__PURE__ */ notEq(/* @__PURE__ */ eqArray(eqString));
+var eqMaybe3 = /* @__PURE__ */ eqMaybe(eqString);
+var notEq1 = /* @__PURE__ */ notEq(/* @__PURE__ */ eqArray(/* @__PURE__ */ eqRec()(/* @__PURE__ */ eqRowCons(/* @__PURE__ */ eqRowCons(/* @__PURE__ */ eqRowCons(/* @__PURE__ */ eqRowCons(/* @__PURE__ */ eqRowCons(eqRowNil)()({
+  reflectSymbol: function() {
+    return "issueId";
+  }
+})(eqIssueId))()({
+  reflectSymbol: function() {
+    return "dependsOnId";
+  }
+})(eqIssueId))()({
+  reflectSymbol: function() {
+    return "depType";
+  }
+})(eqDependencyType))()({
+  reflectSymbol: function() {
+    return "createdBy";
+  }
+})(eqMaybe3))()({
+  reflectSymbol: function() {
+    return "createdAt";
+  }
+})(eqMaybe3))));
 var for_2 = /* @__PURE__ */ for_(applicativeAff)(foldableArray);
+var bind13 = /* @__PURE__ */ bind(bindMaybe);
 var truncate3 = function(n) {
   return function(s) {
-    var $20 = length4(s) <= n;
-    if ($20) {
+    var $61 = length4(s) <= n;
+    if ($61) {
       return s;
     }
     ;
     return take4(n)(s) + "...";
   };
 };
+var showLabels = /* @__PURE__ */ intercalate2(monoidString)(", ");
 var showId = function(v) {
   return v;
+};
+var requireInit = function(action) {
+  return bind5(isInitialized)(function(initialized) {
+    if (initialized) {
+      return action;
+    }
+    ;
+    return liftEffect3(log2("Not a beads repo. Run 'bd init' first."));
+  });
 };
 var $$parseInt = function(s) {
   var v = toCodePointArray(s);
@@ -8093,7 +8876,7 @@ var parseFlag = function(flag) {
           return Nothing.value;
         }
         ;
-        throw new Error("Failed pattern match at Main (line 139, column 10 - line 142, column 23): " + [v.constructor.name]);
+        throw new Error("Failed pattern match at Main (line 246, column 10 - line 249, column 23): " + [v.constructor.name]);
       }
       ;
       while (!$tco_done) {
@@ -8108,7 +8891,7 @@ var parseFlag = function(flag) {
 var formatIssue = function(issue) {
   return "[P" + (show9(issue.priority) + ("] " + (showId(issue.id) + (": " + truncate3(60)(issue.title)))));
 };
-var cmdStats = /* @__PURE__ */ bind5(/* @__PURE__ */ $$try4(getStats))(function(result) {
+var cmdStats = /* @__PURE__ */ requireInit(/* @__PURE__ */ bind5(/* @__PURE__ */ $$try4(getStats))(function(result) {
   if (result instanceof Left) {
     return liftEffect3(log2("Error: " + message(result.value0)));
   }
@@ -8127,47 +8910,164 @@ var cmdStats = /* @__PURE__ */ bind5(/* @__PURE__ */ $$try4(getStats))(function(
     });
   }
   ;
-  throw new Error("Failed pattern match at Main (line 107, column 3 - line 115, column 57): " + [result.constructor.name]);
-});
-var cmdReady = function(args) {
-  var limit = fromMaybe(10)(bind13(parseFlag("-n")(args))($$parseInt));
-  return bind5($$try4(getReady))(function(result) {
-    if (result instanceof Left) {
-      return liftEffect3(log2("Error: " + message(result.value0)));
+  throw new Error("Failed pattern match at Main (line 207, column 3 - line 215, column 57): " + [result.constructor.name]);
+}));
+var cmdShow = function(args) {
+  return requireInit((function() {
+    var v = head(args);
+    if (v instanceof Nothing) {
+      return liftEffect3(log2("Usage: bd show <id>"));
     }
     ;
-    if (result instanceof Right) {
-      return discard1(liftEffect3(log2("Ready issues (by priority):")))(function() {
-        return discard1(liftEffect3(log2("")))(function() {
-          return for_2(take(limit)(result.value0))(function(issue) {
-            return liftEffect3(log2(formatIssue(issue)));
+    if (v instanceof Just) {
+      return bind5($$try4(getIssue(v.value0)))(function(result) {
+        if (result instanceof Left) {
+          return liftEffect3(log2("Error: " + message(result.value0)));
+        }
+        ;
+        if (result instanceof Right && result.value0 instanceof Nothing) {
+          return liftEffect3(log2("Issue not found: " + v.value0));
+        }
+        ;
+        if (result instanceof Right && result.value0 instanceof Just) {
+          return discard1(liftEffect3(log2("Issue: " + v.value0)))(function() {
+            return discard1(liftEffect3(log2("  Title:    " + result.value0.value0.title)))(function() {
+              return discard1(liftEffect3(log2("  Status:   " + show16(result.value0.value0.status))))(function() {
+                return discard1(liftEffect3(log2("  Priority: P" + show9(result.value0.value0.priority))))(function() {
+                  return discard1((function() {
+                    if (result.value0.value0.description instanceof Just) {
+                      return liftEffect3(log2("  Desc:     " + result.value0.value0.description.value0));
+                    }
+                    ;
+                    if (result.value0.value0.description instanceof Nothing) {
+                      return pure5(unit);
+                    }
+                    ;
+                    throw new Error("Failed pattern match at Main (line 136, column 11 - line 138, column 33): " + [result.value0.value0.description.constructor.name]);
+                  })())(function() {
+                    return discard1((function() {
+                      if (result.value0.value0.issueType instanceof Just) {
+                        return liftEffect3(log2("  Type:     " + result.value0.value0.issueType.value0));
+                      }
+                      ;
+                      if (result.value0.value0.issueType instanceof Nothing) {
+                        return pure5(unit);
+                      }
+                      ;
+                      throw new Error("Failed pattern match at Main (line 139, column 11 - line 141, column 33): " + [result.value0.value0.issueType.constructor.name]);
+                    })())(function() {
+                      return discard1(when3(notEq4(result.value0.value0.labels)([]))(liftEffect3(log2("  Labels:   " + showLabels(result.value0.value0.labels)))))(function() {
+                        return discard1(when3(notEq1(result.value0.value0.dependencies)([]))(discard1(liftEffect3(log2("  Blocked by:")))(function() {
+                          return for_2(result.value0.value0.dependencies)(function(dep) {
+                            return liftEffect3(log2("    - " + showId(dep.dependsOnId)));
+                          });
+                        })))(function() {
+                          return discard1(liftEffect3(log2("  Created:  " + result.value0.value0.createdAt)))(function() {
+                            return discard1(liftEffect3(log2("  Updated:  " + result.value0.value0.updatedAt)))(function() {
+                              return discard1((function() {
+                                if (result.value0.value0.closedAt instanceof Just) {
+                                  return liftEffect3(log2("  Closed:   " + result.value0.value0.closedAt.value0));
+                                }
+                                ;
+                                if (result.value0.value0.closedAt instanceof Nothing) {
+                                  return pure5(unit);
+                                }
+                                ;
+                                throw new Error("Failed pattern match at Main (line 150, column 11 - line 152, column 33): " + [result.value0.value0.closedAt.constructor.name]);
+                              })())(function() {
+                                if (result.value0.value0.closeReason instanceof Just) {
+                                  return liftEffect3(log2("  Reason:   " + result.value0.value0.closeReason.value0));
+                                }
+                                ;
+                                if (result.value0.value0.closeReason instanceof Nothing) {
+                                  return pure5(unit);
+                                }
+                                ;
+                                throw new Error("Failed pattern match at Main (line 153, column 11 - line 155, column 33): " + [result.value0.value0.closeReason.constructor.name]);
+                              });
+                            });
+                          });
+                        });
+                      });
+                    });
+                  });
+                });
+              });
+            });
           });
-        });
+        }
+        ;
+        throw new Error("Failed pattern match at Main (line 128, column 7 - line 155, column 33): " + [result.constructor.name]);
       });
     }
     ;
-    throw new Error("Failed pattern match at Main (line 70, column 3 - line 76, column 45): " + [result.constructor.name]);
-  });
+    throw new Error("Failed pattern match at Main (line 123, column 3 - line 155, column 33): " + [v.constructor.name]);
+  })());
+};
+var cmdReady = function(args) {
+  return requireInit((function() {
+    var limit = fromMaybe(10)(bind13(parseFlag("-n")(args))($$parseInt));
+    return bind5($$try4(getReady))(function(result) {
+      if (result instanceof Left) {
+        return liftEffect3(log2("Error: " + message(result.value0)));
+      }
+      ;
+      if (result instanceof Right) {
+        return discard1(liftEffect3(log2("Ready issues (by priority):")))(function() {
+          return discard1(liftEffect3(log2("")))(function() {
+            return for_2(take(limit)(result.value0))(function(issue) {
+              return liftEffect3(log2(formatIssue(issue)));
+            });
+          });
+        });
+      }
+      ;
+      throw new Error("Failed pattern match at Main (line 82, column 5 - line 88, column 47): " + [result.constructor.name]);
+    });
+  })());
 };
 var cmdList = function(args) {
-  var limit = fromMaybe(20)(bind13(parseFlag("-n")(args))($$parseInt));
-  return bind5($$try4(getOpen))(function(result) {
-    if (result instanceof Left) {
-      return liftEffect3(log2("Error: " + message(result.value0)));
-    }
-    ;
-    if (result instanceof Right) {
-      return discard1(liftEffect3(log2("Open issues:")))(function() {
-        return discard1(liftEffect3(log2("")))(function() {
-          return for_2(take(limit)(result.value0))(function(issue) {
-            return liftEffect3(log2(formatIssue(issue)));
+  return requireInit((function() {
+    var limit = fromMaybe(20)(bind13(parseFlag("-n")(args))($$parseInt));
+    var search = parseFlag("-s")(args);
+    return bind5($$try4((function() {
+      if (search instanceof Just) {
+        return searchOpen(search.value0);
+      }
+      ;
+      if (search instanceof Nothing) {
+        return getOpen;
+      }
+      ;
+      throw new Error("Failed pattern match at Main (line 107, column 19 - line 109, column 27): " + [search.constructor.name]);
+    })()))(function(result) {
+      if (result instanceof Left) {
+        return liftEffect3(log2("Error: " + message(result.value0)));
+      }
+      ;
+      if (result instanceof Right) {
+        return discard1((function() {
+          if (search instanceof Just) {
+            return liftEffect3(log2('Open issues matching "' + (search.value0 + '":')));
+          }
+          ;
+          if (search instanceof Nothing) {
+            return liftEffect3(log2("Open issues:"));
+          }
+          ;
+          throw new Error("Failed pattern match at Main (line 113, column 7 - line 115, column 51): " + [search.constructor.name]);
+        })())(function() {
+          return discard1(liftEffect3(log2("")))(function() {
+            return for_2(take(limit)(result.value0))(function(issue) {
+              return liftEffect3(log2(formatIssue(issue)));
+            });
           });
         });
-      });
-    }
-    ;
-    throw new Error("Failed pattern match at Main (line 95, column 3 - line 101, column 45): " + [result.constructor.name]);
-  });
+      }
+      ;
+      throw new Error("Failed pattern match at Main (line 110, column 3 - line 118, column 45): " + [result.constructor.name]);
+    });
+  })());
 };
 var cmdInit = /* @__PURE__ */ bind5(/* @__PURE__ */ $$try4(initRepo))(function(result) {
   if (result instanceof Left) {
@@ -8182,7 +9082,7 @@ var cmdInit = /* @__PURE__ */ bind5(/* @__PURE__ */ $$try4(initRepo))(function(r
     return liftEffect3(log2("Beads repo already exists at " + result.value0.path));
   }
   ;
-  throw new Error("Failed pattern match at Main (line 42, column 3 - line 47, column 72): " + [result.constructor.name]);
+  throw new Error("Failed pattern match at Main (line 53, column 3 - line 58, column 72): " + [result.constructor.name]);
 });
 var cmdHelp = /* @__PURE__ */ liftEffect3(function __do3() {
   log2("beads-purs - A PureScript issue tracker")();
@@ -8194,58 +9094,157 @@ var cmdHelp = /* @__PURE__ */ liftEffect3(function __do3() {
   log2('    -d "desc"       Set description')();
   log2("  ready             Show issues ready to work on")();
   log2("    -n <limit>      Limit results (default 10)")();
-  log2('  close <id> "why"  Close an issue with reason')();
   log2("  list              Show all open issues")();
   log2("    -n <limit>      Limit results (default 20)")();
+  log2("    -s <query>      Search by title")();
+  log2("  show <id>         Show issue details")();
+  log2('  close <id> "why"  Close an issue with reason')();
+  log2("  dep add <a> <b>   Make a blocked by b")();
+  log2("  dep rm <a> <b>    Remove dependency")();
+  log2("  edit <id>         Edit an issue")();
+  log2('    -t "title"      Set new title')();
+  log2("    -p <priority>   Set new priority")();
   log2("  stats             Show statistics")();
   return log2("  help              Show this help")();
 });
-var cmdCreate = function(args) {
-  var v = head(args);
-  if (v instanceof Nothing) {
-    return liftEffect3(log2('Usage: bd create "title" [-p priority]'));
-  }
-  ;
-  if (v instanceof Just) {
-    var priority = fromMaybe(2)(bind13(parseFlag("-p")(args))($$parseInt));
-    var description = parseFlag("-d")(args);
-    return bind5($$try4(createIssue(v.value0)(description)(priority)))(function(result) {
-      if (result instanceof Left) {
-        return liftEffect3(log2("Error: " + message(result.value0)));
+var cmdEdit = function(args) {
+  return requireInit((function() {
+    var v = head(args);
+    if (v instanceof Nothing) {
+      return liftEffect3(log2("Usage: bd edit <id> [-t title] [-p priority]"));
+    }
+    ;
+    if (v instanceof Just) {
+      var newTitle = parseFlag("-t")(args);
+      var newPriority = bind13(parseFlag("-p")(args))($$parseInt);
+      if (newTitle instanceof Nothing && newPriority instanceof Nothing) {
+        return liftEffect3(log2("Nothing to edit. Use -t or -p."));
       }
       ;
-      if (result instanceof Right) {
-        return discard1(liftEffect3(log2("Created: " + showId(result.value0.id))))(function() {
-          return discard1(liftEffect3(log2("  Title: " + v.value0)))(function() {
-            return liftEffect3(log2("  Priority: P" + show9(priority)));
-          });
+      if (newTitle instanceof Just) {
+        return bind5($$try4(setTitle2(v.value0)(newTitle.value0)))(function(result) {
+          if (result instanceof Left) {
+            return liftEffect3(log2("Error: " + message(result.value0)));
+          }
+          ;
+          if (result instanceof Right) {
+            return liftEffect3(log2("Updated title: " + newTitle.value0));
+          }
+          ;
+          throw new Error("Failed pattern match at Main (line 194, column 11 - line 196, column 65): " + [result.constructor.name]);
         });
       }
       ;
-      throw new Error("Failed pattern match at Main (line 58, column 7 - line 63, column 62): " + [result.constructor.name]);
+      if (newTitle instanceof Nothing && newPriority instanceof Just) {
+        return bind5($$try4(setPriority2(v.value0)(newPriority.value0)))(function(result) {
+          if (result instanceof Left) {
+            return liftEffect3(log2("Error: " + message(result.value0)));
+          }
+          ;
+          if (result instanceof Right) {
+            return liftEffect3(log2("Updated priority: P" + show9(newPriority.value0)));
+          }
+          ;
+          throw new Error("Failed pattern match at Main (line 199, column 11 - line 201, column 74): " + [result.constructor.name]);
+        });
+      }
+      ;
+      throw new Error("Failed pattern match at Main (line 190, column 7 - line 201, column 74): " + [newTitle.constructor.name, newPriority.constructor.name]);
+    }
+    ;
+    throw new Error("Failed pattern match at Main (line 183, column 3 - line 201, column 74): " + [v.constructor.name]);
+  })());
+};
+var cmdDep = function(args) {
+  return requireInit((function() {
+    var v = index(args)(2);
+    var v1 = index(args)(1);
+    var v2 = index(args)(0);
+    if (v2 instanceof Just && (v2.value0 === "add" && (v1 instanceof Just && v instanceof Just))) {
+      return bind5($$try4(addDependency(v1.value0)(v.value0)))(function(result) {
+        if (result instanceof Left) {
+          return liftEffect3(log2("Error: " + message(result.value0)));
+        }
+        ;
+        if (result instanceof Right) {
+          return liftEffect3(log2(v1.value0 + (" is now blocked by " + v.value0)));
+        }
+        ;
+        throw new Error("Failed pattern match at Main (line 165, column 7 - line 167, column 80): " + [result.constructor.name]);
+      });
+    }
+    ;
+    if (v2 instanceof Just && (v2.value0 === "rm" && (v1 instanceof Just && v instanceof Just))) {
+      return bind5($$try4(removeDependency(v1.value0)(v.value0)))(function(result) {
+        if (result instanceof Left) {
+          return liftEffect3(log2("Error: " + message(result.value0)));
+        }
+        ;
+        if (result instanceof Right) {
+          return liftEffect3(log2(v1.value0 + (" is no longer blocked by " + v.value0)));
+        }
+        ;
+        throw new Error("Failed pattern match at Main (line 172, column 7 - line 174, column 86): " + [result.constructor.name]);
+      });
+    }
+    ;
+    return discard1(liftEffect3(log2("Usage:")))(function() {
+      return discard1(liftEffect3(log2("  bd dep add <from> <to>  - from is blocked by to")))(function() {
+        return liftEffect3(log2("  bd dep rm <from> <to>   - remove dependency"));
+      });
     });
-  }
-  ;
-  throw new Error("Failed pattern match at Main (line 52, column 3 - line 63, column 62): " + [v.constructor.name]);
+  })());
+};
+var cmdCreate = function(args) {
+  return requireInit((function() {
+    var v = head(args);
+    if (v instanceof Nothing) {
+      return liftEffect3(log2('Usage: bd create "title" [-p priority]'));
+    }
+    ;
+    if (v instanceof Just) {
+      var priority = fromMaybe(2)(bind13(parseFlag("-p")(args))($$parseInt));
+      var description = parseFlag("-d")(args);
+      return bind5($$try4(createIssue(v.value0)(description)(priority)))(function(result) {
+        if (result instanceof Left) {
+          return liftEffect3(log2("Error: " + message(result.value0)));
+        }
+        ;
+        if (result instanceof Right) {
+          return discard1(liftEffect3(log2("Created: " + showId(result.value0.id))))(function() {
+            return discard1(liftEffect3(log2("  Title: " + v.value0)))(function() {
+              return liftEffect3(log2("  Priority: P" + show9(priority)));
+            });
+          });
+        }
+        ;
+        throw new Error("Failed pattern match at Main (line 69, column 7 - line 74, column 62): " + [result.constructor.name]);
+      });
+    }
+    ;
+    throw new Error("Failed pattern match at Main (line 63, column 3 - line 74, column 62): " + [v.constructor.name]);
+  })());
 };
 var cmdClose = function(args) {
-  var v = index(args)(1);
-  var v1 = index(args)(0);
-  if (v1 instanceof Just && v instanceof Just) {
-    return bind5($$try4(closeIssue(v1.value0)(v.value0)))(function(result) {
-      if (result instanceof Left) {
-        return liftEffect3(log2("Error: " + message(result.value0)));
-      }
-      ;
-      if (result instanceof Right) {
-        return liftEffect3(log2("Closed: " + v1.value0));
-      }
-      ;
-      throw new Error("Failed pattern match at Main (line 85, column 7 - line 87, column 58): " + [result.constructor.name]);
-    });
-  }
-  ;
-  return liftEffect3(log2('Usage: bd close <id> "reason"'));
+  return requireInit((function() {
+    var v = index(args)(1);
+    var v1 = index(args)(0);
+    if (v1 instanceof Just && v instanceof Just) {
+      return bind5($$try4(closeIssue(v1.value0)(v.value0)))(function(result) {
+        if (result instanceof Left) {
+          return liftEffect3(log2("Error: " + message(result.value0)));
+        }
+        ;
+        if (result instanceof Right) {
+          return liftEffect3(log2("Closed: " + v1.value0));
+        }
+        ;
+        throw new Error("Failed pattern match at Main (line 97, column 7 - line 99, column 58): " + [result.constructor.name]);
+      });
+    }
+    ;
+    return liftEffect3(log2('Usage: bd close <id> "reason"'));
+  })());
 };
 var main = /* @__PURE__ */ launchAff_(/* @__PURE__ */ bind5(/* @__PURE__ */ liftEffect3(argv))(function(args) {
   var command = index(args)(2);
@@ -8270,6 +9269,18 @@ var main = /* @__PURE__ */ launchAff_(/* @__PURE__ */ bind5(/* @__PURE__ */ lift
     return cmdList(cmdArgs);
   }
   ;
+  if (command instanceof Just && command.value0 === "show") {
+    return cmdShow(cmdArgs);
+  }
+  ;
+  if (command instanceof Just && command.value0 === "dep") {
+    return cmdDep(cmdArgs);
+  }
+  ;
+  if (command instanceof Just && command.value0 === "edit") {
+    return cmdEdit(cmdArgs);
+  }
+  ;
   if (command instanceof Just && command.value0 === "stats") {
     return cmdStats;
   }
@@ -8288,7 +9299,7 @@ var main = /* @__PURE__ */ launchAff_(/* @__PURE__ */ bind5(/* @__PURE__ */ lift
     return cmdHelp;
   }
   ;
-  throw new Error("Failed pattern match at Main (line 25, column 3 - line 36, column 23): " + [command.constructor.name]);
+  throw new Error("Failed pattern match at Main (line 25, column 3 - line 39, column 23): " + [command.constructor.name]);
 }));
 
 // <stdin>

@@ -4,7 +4,7 @@ import Prelude
 
 import Beads.App as App
 import Beads.Core.Types (Issue, IssueId(..))
-import Data.Array (drop, head, take, (!!))
+import Data.Array (drop, head, intercalate, take, (!!))
 import Data.Foldable (for_)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -28,12 +28,23 @@ main = launchAff_ do
     Just "ready" -> cmdReady cmdArgs
     Just "close" -> cmdClose cmdArgs
     Just "list" -> cmdList cmdArgs
+    Just "show" -> cmdShow cmdArgs
+    Just "dep" -> cmdDep cmdArgs
+    Just "edit" -> cmdEdit cmdArgs
     Just "stats" -> cmdStats
     Just "help" -> cmdHelp
     Just cmd -> do
       liftEffect $ log $ "Unknown command: " <> cmd
       cmdHelp
     Nothing -> cmdHelp
+
+-- | Check if beads is initialized, run action if so, otherwise warn
+requireInit :: Aff Unit -> Aff Unit
+requireInit action = do
+  initialized <- App.isInitialized
+  if initialized
+    then action
+    else liftEffect $ log "Not a beads repo. Run 'bd init' first."
 
 -- | bd init - initialize a beads repo
 cmdInit :: Aff Unit
@@ -48,7 +59,7 @@ cmdInit = do
 
 -- | bd create "title" [-p priority] [-d description]
 cmdCreate :: Array String -> Aff Unit
-cmdCreate args = do
+cmdCreate args = requireInit do
   case head args of
     Nothing -> liftEffect $ log "Usage: bd create \"title\" [-p priority]"
     Just title -> do
@@ -65,19 +76,20 @@ cmdCreate args = do
 -- | bd ready [-n limit]
 cmdReady :: Array String -> Aff Unit
 cmdReady args = do
-  let limit = fromMaybe 10 $ parseFlag "-n" args >>= parseInt
-  result <- try $ App.getReady
-  case result of
-    Left err -> liftEffect $ log $ "Error: " <> message err
-    Right issues -> do
-      liftEffect $ log "Ready issues (by priority):"
-      liftEffect $ log ""
-      for_ (take limit issues) \issue -> do
-        liftEffect $ log $ formatIssue issue
+  requireInit do
+    let limit = fromMaybe 10 $ parseFlag "-n" args >>= parseInt
+    result <- try $ App.getReady
+    case result of
+      Left err -> liftEffect $ log $ "Error: " <> message err
+      Right issues -> do
+        liftEffect $ log "Ready issues (by priority):"
+        liftEffect $ log ""
+        for_ (take limit issues) \issue -> do
+          liftEffect $ log $ formatIssue issue
 
 -- | bd close <id> "reason"
 cmdClose :: Array String -> Aff Unit
-cmdClose args = do
+cmdClose args = requireInit do
   case args !! 0, args !! 1 of
     Just idStr, Just reason -> do
       let id = IssueId idStr
@@ -87,22 +99,110 @@ cmdClose args = do
         Right _ -> liftEffect $ log $ "Closed: " <> idStr
     _, _ -> liftEffect $ log "Usage: bd close <id> \"reason\""
 
--- | bd list [-n limit]
+-- | bd list [-n limit] [-s search]
 cmdList :: Array String -> Aff Unit
-cmdList args = do
+cmdList args = requireInit do
   let limit = fromMaybe 20 $ parseFlag "-n" args >>= parseInt
-  result <- try $ App.getOpen
+  let search = parseFlag "-s" args
+  result <- try $ case search of
+    Just q -> App.searchOpen q
+    Nothing -> App.getOpen
   case result of
     Left err -> liftEffect $ log $ "Error: " <> message err
     Right issues -> do
-      liftEffect $ log "Open issues:"
+      case search of
+        Just q -> liftEffect $ log $ "Open issues matching \"" <> q <> "\":"
+        Nothing -> liftEffect $ log "Open issues:"
       liftEffect $ log ""
       for_ (take limit issues) \issue -> do
         liftEffect $ log $ formatIssue issue
 
+-- | bd show <id>
+cmdShow :: Array String -> Aff Unit
+cmdShow args = requireInit do
+  case head args of
+    Nothing -> liftEffect $ log "Usage: bd show <id>"
+    Just idStr -> do
+      let id = IssueId idStr
+      result <- try $ App.getIssue id
+      case result of
+        Left err -> liftEffect $ log $ "Error: " <> message err
+        Right Nothing -> liftEffect $ log $ "Issue not found: " <> idStr
+        Right (Just issue) -> do
+          liftEffect $ log $ "Issue: " <> idStr
+          liftEffect $ log $ "  Title:    " <> issue.title
+          liftEffect $ log $ "  Status:   " <> show issue.status
+          liftEffect $ log $ "  Priority: P" <> show issue.priority
+          case issue.description of
+            Just d -> liftEffect $ log $ "  Desc:     " <> d
+            Nothing -> pure unit
+          case issue.issueType of
+            Just t -> liftEffect $ log $ "  Type:     " <> t
+            Nothing -> pure unit
+          when (issue.labels /= []) do
+            liftEffect $ log $ "  Labels:   " <> showLabels issue.labels
+          when (issue.dependencies /= []) do
+            liftEffect $ log $ "  Blocked by:"
+            for_ issue.dependencies \dep -> do
+              liftEffect $ log $ "    - " <> showId dep.dependsOnId
+          liftEffect $ log $ "  Created:  " <> issue.createdAt
+          liftEffect $ log $ "  Updated:  " <> issue.updatedAt
+          case issue.closedAt of
+            Just t -> liftEffect $ log $ "  Closed:   " <> t
+            Nothing -> pure unit
+          case issue.closeReason of
+            Just r -> liftEffect $ log $ "  Reason:   " <> r
+            Nothing -> pure unit
+
+-- | bd dep add|rm <from> <to>
+cmdDep :: Array String -> Aff Unit
+cmdDep args = requireInit do
+  case args !! 0, args !! 1, args !! 2 of
+    Just "add", Just fromStr, Just toStr -> do
+      let fromId = IssueId fromStr
+      let toId = IssueId toStr
+      result <- try $ App.addDependency fromId toId
+      case result of
+        Left err -> liftEffect $ log $ "Error: " <> message err
+        Right _ -> liftEffect $ log $ fromStr <> " is now blocked by " <> toStr
+    Just "rm", Just fromStr, Just toStr -> do
+      let fromId = IssueId fromStr
+      let toId = IssueId toStr
+      result <- try $ App.removeDependency fromId toId
+      case result of
+        Left err -> liftEffect $ log $ "Error: " <> message err
+        Right _ -> liftEffect $ log $ fromStr <> " is no longer blocked by " <> toStr
+    _, _, _ -> do
+      liftEffect $ log "Usage:"
+      liftEffect $ log "  bd dep add <from> <to>  - from is blocked by to"
+      liftEffect $ log "  bd dep rm <from> <to>   - remove dependency"
+
+-- | bd edit <id> [-t title] [-p priority]
+cmdEdit :: Array String -> Aff Unit
+cmdEdit args = requireInit do
+  case head args of
+    Nothing -> liftEffect $ log "Usage: bd edit <id> [-t title] [-p priority]"
+    Just idStr -> do
+      let id = IssueId idStr
+      let newTitle = parseFlag "-t" args
+      let newPriority = parseFlag "-p" args >>= parseInt
+
+      case newTitle, newPriority of
+        Nothing, Nothing -> liftEffect $ log "Nothing to edit. Use -t or -p."
+        Just t, _ -> do
+          result <- try $ App.setTitle id t
+          case result of
+            Left err -> liftEffect $ log $ "Error: " <> message err
+            Right _ -> liftEffect $ log $ "Updated title: " <> t
+        Nothing, Just p -> do
+          result <- try $ App.setPriority id p
+          case result of
+            Left err -> liftEffect $ log $ "Error: " <> message err
+            Right _ -> liftEffect $ log $ "Updated priority: P" <> show p
+
 -- | bd stats
 cmdStats :: Aff Unit
-cmdStats = do
+cmdStats = requireInit do
   result <- try $ App.getStats
   case result of
     Left err -> liftEffect $ log $ "Error: " <> message err
@@ -126,9 +226,16 @@ cmdHelp = liftEffect do
   log "    -d \"desc\"       Set description"
   log "  ready             Show issues ready to work on"
   log "    -n <limit>      Limit results (default 10)"
-  log "  close <id> \"why\"  Close an issue with reason"
   log "  list              Show all open issues"
   log "    -n <limit>      Limit results (default 20)"
+  log "    -s <query>      Search by title"
+  log "  show <id>         Show issue details"
+  log "  close <id> \"why\"  Close an issue with reason"
+  log "  dep add <a> <b>   Make a blocked by b"
+  log "  dep rm <a> <b>    Remove dependency"
+  log "  edit <id>         Edit an issue"
+  log "    -t \"title\"      Set new title"
+  log "    -p <priority>   Set new priority"
   log "  stats             Show statistics"
   log "  help              Show this help"
 
@@ -161,3 +268,6 @@ truncate n s =
   if String.length s <= n
     then s
     else String.take n s <> "..."
+
+showLabels :: Array String -> String
+showLabels = intercalate ", "

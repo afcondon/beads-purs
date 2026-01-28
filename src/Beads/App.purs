@@ -7,8 +7,9 @@ import Beads.Core.Id (generateId)
 import Beads.Core.Queries as Q
 import Beads.Core.Store (Store)
 import Beads.Core.Store as Store
-import Beads.Core.Types (Issue, IssueId)
+import Beads.Core.Types (Issue, IssueId, DependencyType(..))
 import Beads.Storage.JSONL (parseJSONL, serializeJSONL)
+import Data.Array (filter)
 import Data.DateTime.Instant (toDateTime)
 import Data.Either (Either(..))
 import Data.Formatter.DateTime (formatDateTime)
@@ -166,3 +167,79 @@ getStats = do
   config <- findBeadsDir
   store <- loadStore config
   pure $ Q.stats store
+
+-- | Get a single issue by ID
+getIssue :: IssueId -> Aff (Maybe Issue)
+getIssue id = do
+  config <- findBeadsDir
+  store <- loadStore config
+  pure $ Store.lookup id store
+
+-- | Add a dependency (fromId depends on toId / toId blocks fromId)
+addDependency :: IssueId -> IssueId -> Aff Unit
+addDependency fromId toId = do
+  config <- findBeadsDir
+  store <- loadStore config
+  timestamp <- liftEffect getTimestamp
+
+  case Cmd.addDep fromId toId timestamp Blocks store of
+    Left err -> throwError $ error $ show err
+    Right store' -> do
+      saveStore config ("beads: dep add " <> show fromId <> " blocked by " <> show toId) store'
+
+-- | Remove a dependency
+removeDependency :: IssueId -> IssueId -> Aff Unit
+removeDependency fromId toId = do
+  config <- findBeadsDir
+  store <- loadStore config
+  timestamp <- liftEffect getTimestamp
+
+  case Cmd.removeDep fromId toId timestamp store of
+    Left err -> throwError $ error $ show err
+    Right store' -> do
+      saveStore config ("beads: dep rm " <> show fromId <> " no longer blocked by " <> show toId) store'
+
+-- | Update issue title
+setTitle :: IssueId -> String -> Aff Unit
+setTitle id title = do
+  config <- findBeadsDir
+  store <- loadStore config
+  timestamp <- liftEffect getTimestamp
+
+  case Cmd.setTitle id timestamp title store of
+    Left err -> throwError $ error $ show err
+    Right store' -> do
+      saveStore config ("beads: edit " <> show id <> " title: " <> title) store'
+
+-- | Update issue priority
+setPriority :: IssueId -> Int -> Aff Unit
+setPriority id priority = do
+  config <- findBeadsDir
+  store <- loadStore config
+  timestamp <- liftEffect getTimestamp
+
+  case Cmd.setPriority id timestamp priority store of
+    Left err -> throwError $ error $ show err
+    Right store' -> do
+      saveStore config ("beads: edit " <> show id <> " priority: P" <> show priority) store'
+
+-- | Search open issues by title substring (case-insensitive)
+searchOpen :: String -> Aff (Array Issue)
+searchOpen query = do
+  config <- findBeadsDir
+  store <- loadStore config
+  let open = Q.openIssues store
+  let lowerQuery = toLower query
+  pure $ filter (\i -> contains lowerQuery (toLower i.title)) open
+  where
+  toLower s = s  -- TODO: proper case folding via FFI
+  contains needle haystack = isInfixOf needle haystack
+
+-- | Check if needle is a substring of haystack
+foreign import isInfixOf :: String -> String -> Boolean
+
+-- | Check if beads is initialized in current directory
+isInitialized :: Aff Boolean
+isInitialized = do
+  config <- findBeadsDir
+  exists config.issuesFile
