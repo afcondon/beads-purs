@@ -114,6 +114,33 @@ It's just text. You can grep it, edit it, diff it.
 - **Conflict-free**: Hash-based IDs prevent merge collisions
 - **Functional core**: Pure transformations, effects at edges
 
+## Using with Claude Code
+
+Claude won't automatically use beads just because `.beads/` exists - you need to tell it. Add this to your project's `CLAUDE.md`:
+
+```markdown
+## Issue Tracking
+
+This project uses beads for issue tracking. Commands: `bd help`
+
+**Start of session:**
+- Run `bd ready` to see unblocked issues by priority
+- Pick the top item to work on
+
+**During work:**
+- `bd create "title" -p N` when you discover new work needed
+- `bd dep add <a> <b>` if issue a is blocked by issue b
+- `bd show <id>` to see full details of an issue
+
+**End of session:**
+- `bd close <id> "what you did"` for completed work
+- All changes auto-commit to git
+
+**Priority levels:** P0=critical, P1=high, P2=normal, P3=low, P4=backlog
+```
+
+This gives Claude enough context to use beads effectively during development sessions.
+
 ## Building from Source
 
 If you want to modify beads-purs:
