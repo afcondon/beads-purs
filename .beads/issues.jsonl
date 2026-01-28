@@ -1,7 +1,7 @@
 {"id":"bd-31e9","title":"Add bd show command to view single issue details","status":"open","priority":2,"issue_type":"task","created_at":"2026-01-28T12:30:20Z","updated_at":"2026-01-28T12:30:20Z"}
 {"id":"bd-49e8","title":"Handle missing .beads directory gracefully","status":"open","priority":2,"issue_type":"task","created_at":"2026-01-28T12:30:40Z","updated_at":"2026-01-28T12:30:40Z"}
 {"id":"bd-6e67","title":"Add bd dep command for managing dependencies","status":"open","priority":1,"issue_type":"task","created_at":"2026-01-28T12:30:36Z","updated_at":"2026-01-28T12:30:36Z"}
-{"id":"bd-6fef","title":"Add bd edit command for modifying issues","status":"open","priority":3,"issue_type":"task","created_at":"2026-01-28T12:30:39Z","updated_at":"2026-01-28T12:30:39Z"}
+{"id":"bd-6fef","title":"Add bd edit command for modifying issues","status":"open","priority":2,"issue_type":"task","created_at":"2026-01-28T12:30:39Z","updated_at":"2026-01-28T12:52:12Z"}
 {"id":"bd-d72e","title":"Bundle to standalone executable script","status":"closed","priority":1,"issue_type":"task","created_at":"2026-01-28T12:30:38Z","updated_at":"2026-01-28T12:34:13Z","closed_at":"2026-01-28T12:34:13Z","close_reason":"Bundled to bin/bd.js with wrapper script"}
 {"id":"bd-df8f","title":"Implement full-text search in bd list","status":"open","priority":2,"issue_type":"task","created_at":"2026-01-28T12:30:37Z","updated_at":"2026-01-28T12:30:37Z"}
 {"id":"bd-f9d4","title":"test","status":"closed","priority":4,"issue_type":"task","created_at":"2026-01-28T12:46:47Z","updated_at":"2026-01-28T12:47:21Z","closed_at":"2026-01-28T12:47:21Z","close_reason":"test completed"}
